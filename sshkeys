@@ -1,0 +1,117 @@
+#!/bin/bash
+#
+##############################################################################
+# sshtest                       Version 0.8                                  #
+# Copyright 2001 Bob Cavey      wedgeshot@gmail.com                          #
+# Created 10/29/2001            Last Modified 03/06/2021                     #
+##############################################################################
+##############################################################################
+# COPYRIGHT NOTICE                                                           #
+# Copyright 2001 Bob Cavey	  All Rights Reserved.                       #
+#                                                                            #
+# this copyright notice and the comments above remain intact.  By using this #
+# code you agree to indemnify Bob Cavey from any liability that              # 
+# might arise from it's use.                                                 # 
+#                                                                            #
+# Selling the code for this program without prior written consent is         #
+# expressly forbidden.  In other words, please ask first before you try and  #
+# make money off of my program.                                              #
+#                                                                            #
+# Obtain permission before redistributing this software over the Internet or #
+# in any other medium.In all cases copyright and header must remain intact.  #
+############################################################################## 
+#
+#
+## For Debug un-comment below line
+#set -x
+
+HOSTN=`hostname`
+export HOSTN
+
+## Set up some things ?
+TMPSHELL=`echo $SHELL | sed -e 's/^.*\///g'`
+
+## Set FOUNDPID to NULL
+FOUNDPID=""
+
+if [ $TMPSHELL = "csh" -o  $TMPSHELL = "tcsh" ]; then 
+  SHELLTYPE=c
+ else
+  SHELLTYPE=s
+fi
+
+MEID=`id -un`
+
+## Check if a agent is running
+CHKAGE=`ps -eo user:20,pid,args | egrep "$MEID" | egrep ssh-agent | egrep -v grep | wc -l`
+
+## Is there an instance(s) of ssh-agent?
+if [ "$CHKAGE" -ge 1 ]; then
+
+  ## FOUND a running agent
+  FOUNDPID="YES"
+  ####echo "found running agent"
+
+  ## Grab's the oldest running agent
+  TMPSPID=`ps -eo user:20,pid,args | egrep "$MEID" | egrep ssh-agent | head -1 | awk -F" " '{ print $2 }'`
+  ####echo " temp pid $TMPSPID"
+  REALSPID=$TMPSPID
+
+  ## Check to see if there is a current .sshenv-$HOSTN file
+  if [ -f $HOME/.sshenv-$HOSTN ] && [ $FOUNDPID = YES ]; then
+  ## Get the socket
+  FNDSOCK=`cat $HOME/.sshenv-$HOSTN | grep SSH_AUTH_SOCK | grep -Po "/.*\.[0-9]{2,12}"`
+  FNDPID=`cat $HOME/.sshenv-$HOSTN | grep SSH_AGENT_PID | grep -Po "[0-9]{2,12}"`
+  ####echo "found sock $FNDSOCK"
+  ####echo "found pid $FNDPID"
+  fi
+  ## Need to confirm the SSH_AUTH_SOCK file name to make sure we get the correct one.
+  ####echo " really to check to see if we found both"
+  if [ -f $FNDSOCK ] || [[ $REALSPID -eq $FNDPID ]]; then
+	####echo "Found both"
+	if [ $SHELLTYPE = c ]; then
+		echo "setenv SSH_AGENT_PID $REALSPID;" > $HOME/.sshenv-$HOSTN
+		echo "setenv SSH_AUTH_SOCK $FNDSOCK;" >> $HOME/.sshenv-$HOSTN
+	  else
+		echo "SSH_AGENT_PID=$REALSPID; export SSH_AGENT_PID;" > $HOME/.sshenv-$HOSTN
+		echo "SSH_AUTH_SOCK=$FNDSOCK; export SSH_AUTH_SOCK;" >>  $HOME/.sshenv-$HOSTN
+	fi
+    else
+
+ 	## Decrement by 1 ..
+	## Through "trial after trial" is seems consistent that...
+	## .. the SOCKET gets created then the SSH-AGENT process is spawned incrementing the PID
+	## Well Mandrake 8.2 has broken the record for consistency!!!!!!!
+	TMPSPID=$(($TMPSPID - 1))
+ 	TMPSOCK=""
+
+  	while [ "${TMPSOCK}zz" == "zz" ]; do
+	  ## Find the agent socket file under /tmp
+	  TMPSOCK=`find /tmp -name "agent.$TMPSPID" 2> /dev/null` 
+	  ##echo "tmpsock is ..$TMPSOCK .."
+
+	  TMPSPID=$(($TMPSPID - 1))
+	  ##echo "tmpspid is ..$TMPSPID .."
+ 	done
+  fi
+
+## FUTURE improvement
+## I THINK it would be better to match the current info in the .sshenv-$HOSTN file with what is
+## running and exit here since things are set already. I'll test this in the near future.
+
+
+ else
+
+	## Set FOUNDPID to NO and run ssh-agent
+	## direct output to the .sshenv-$HOSTN which is source by .cshrc/.bash_profile
+	FOUNDPID=NO
+	ssh-agent -$SHELLTYPE | grep -v echo > $HOME/.sshenv-$HOSTN
+fi
+
+
+chmod 700 $HOME/.sshenv-$HOSTN
+####echo " sourcing env file"
+. $HOME/.sshenv-$HOSTN
+# Print the loaded keys found  !!!! MOVED to .bash_profile !!!!
+###echo "----------- SSH KEYS LOADED? ----------- "
+##ssh-add -l
