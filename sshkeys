@@ -2,8 +2,8 @@
 #
 ##############################################################################
 # sshtest                       Version 0.8                                  #
-# Copyright 2001 Bob Cavey      wedgeshot@gmail.com                          #
-# Created 10/29/2001            Last Modified 03/06/2021                     #
+# Copyright 2001 Bob Cavey      wedgeshot@gmail.com
+# Created 10/29/2001            Last Modified 10/03/2022                     #
 ##############################################################################
 ##############################################################################
 # COPYRIGHT NOTICE                                                           #
@@ -53,7 +53,7 @@ if [ "$CHKAGE" -ge 1 ]; then
   ####echo "found running agent"
 
   ## Grab's the oldest running agent
-  TMPSPID=`ps -eo user:20,pid,args | egrep "$MEID" | egrep ssh-agent | head -1 | awk -F" " '{ print $2 }'`
+  TMPSPID=`ps -eo user:20,pid,args | egrep -v grep | egrep "$MEID" | egrep ssh-agent | head -1 | awk -F" " '{ print $2 }'`
   ####echo " temp pid $TMPSPID"
   REALSPID=$TMPSPID
 
@@ -67,7 +67,7 @@ if [ "$CHKAGE" -ge 1 ]; then
   fi
   ## Need to confirm the SSH_AUTH_SOCK file name to make sure we get the correct one.
   ####echo " really to check to see if we found both"
-  if [ -f $FNDSOCK ] || [[ $REALSPID -eq $FNDPID ]]; then
+  if [ -f "$FNDSOCK" ] || [[ "$REALSPID" = "$FNDPID" ]]; then
 	####echo "Found both"
 	if [ $SHELLTYPE = c ]; then
 		echo "setenv SSH_AGENT_PID $REALSPID;" > $HOME/.sshenv-$HOSTN
@@ -85,7 +85,7 @@ if [ "$CHKAGE" -ge 1 ]; then
 	TMPSPID=$(($TMPSPID - 1))
  	TMPSOCK=""
 
-  	while [ "${TMPSOCK}zz" == "zz" ]; do
+  	while [ "${TMPSOCK}zz" = "zz" ]; do
 	  ## Find the agent socket file under /tmp
 	  TMPSOCK=`find /tmp -name "agent.$TMPSPID" 2> /dev/null` 
 	  ##echo "tmpsock is ..$TMPSOCK .."
